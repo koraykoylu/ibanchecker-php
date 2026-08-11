@@ -1,0 +1,54 @@
+{
+    "name": "ibanchecker/client",
+    "description": "Official PHP client for the ibanchecker.cash IBAN validation API: validate IBANs across 92 countries, extract IBANs from text, and look up SWIFT/BIC codes.",
+    "type": "library",
+    "license": "MIT",
+    "homepage": "https://ibanchecker.cash",
+    "keywords": [
+        "iban",
+        "iban-validation",
+        "iban-checker",
+        "swift",
+        "bic",
+        "sepa",
+        "fintech",
+        "banking",
+        "payments"
+    ],
+    "authors": [
+        {
+            "name": "ibanchecker.cash",
+            "email": "api@ibanchecker.cash",
+            "homepage": "https://ibanchecker.cash"
+        }
+    ],
+    "support": {
+        "docs": "https://ibanchecker.cash/api-docs",
+        "issues": "https://github.com/koraykoylu/ibanchecker-php/issues",
+        "source": "https://github.com/koraykoylu/ibanchecker-php"
+    },
+    "require": {
+        "php": "^8.0",
+        "ext-curl": "*",
+        "ext-json": "*"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.6 || ^10.5 || ^11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "IbanChecker\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "IbanChecker\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}
