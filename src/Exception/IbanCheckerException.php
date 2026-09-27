@@ -10,8 +10,8 @@ use RuntimeException;
  * Base class for every error this client raises.
  *
  * A malformed IBAN is not an error: validate() returns a result with
- * valid = false. These are raised for transport, authentication, quota and
- * server-side problems only.
+ * valid = false. These are raised for transport, authentication, plan, quota
+ * and server-side problems only.
  */
 class IbanCheckerException extends RuntimeException
 {

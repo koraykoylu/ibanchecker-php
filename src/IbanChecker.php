@@ -22,10 +22,15 @@ use IbanChecker\Model\ValidationResult;
  * extract IBANs from free text, look up country format specifications, and
  * resolve SWIFT/BIC codes.
  *
- * validate(), validateBulk() and extract() need an API key; without one the
- * API answers 401 and an AuthenticationException is thrown. A free key covers
- * 100 requests a month: https://ibanchecker.cash/api-docs. getFormat() and
- * lookupBic() work without a key, limited to 100 requests an hour per IP.
+ * Every method except getFormat() needs an API key; without one the API
+ * answers 401 and an AuthenticationException is thrown. A free key covers
+ * validate(), 100 requests a month: https://ibanchecker.cash/api-docs.
+ * validateBulk() and lookupBic() need the Basic plan or above, and extract()
+ * the Growth plan or above. A key whose email address has a verified account
+ * at https://ibanchecker.cash/dashboard can try the methods its plan lacks,
+ * at a smaller size. A call outside the key's plan gets 403 with the error
+ * code PLAN_REQUIRED, thrown as an ApiException. getFormat() works without a
+ * key, limited to 100 requests an hour per IP.
  *
  *     $client = new IbanChecker('YOUR_API_KEY');
  *     $result = $client->validate('DE89 3704 0044 0532 0130 00');
@@ -35,7 +40,7 @@ use IbanChecker\Model\ValidationResult;
  */
 final class IbanChecker
 {
-    public const VERSION = '0.1.1';
+    public const VERSION = '0.1.2';
     public const DEFAULT_BASE_URL = 'https://ibanchecker.cash/api/v1';
 
     private ?string $apiKey;
@@ -54,7 +59,8 @@ final class IbanChecker
     }
 
     /**
-     * Validate a single IBAN.
+     * Validate a single IBAN. Any key can call this, a free key included,
+     * and each call counts one request.
      *
      * A malformed IBAN is not an exception: the result comes back with
      * valid = false and an error plus errorCode explaining why.
@@ -69,6 +75,10 @@ final class IbanChecker
     /**
      * Validate up to 100 IBANs in one request. Results come back in the same
      * order as the input.
+     *
+     * Needs a key on the Basic plan or above. A key with a verified account
+     * can try it with up to 10 IBANs per call; more gets a
+     * BadRequestException (TOO_MANY_IBANS). Each IBAN counts one request.
      *
      * @param iterable<string> $ibans
      */
@@ -87,6 +97,11 @@ final class IbanChecker
     /**
      * Scan free text (emails, invoices) for IBAN-shaped strings and validate
      * each candidate. Up to 50,000 characters per request.
+     *
+     * Needs a key on the Growth plan or above. A key with a verified account
+     * can try it with up to 5,000 characters per call; more gets a
+     * BadRequestException (TEXT_TOO_LONG). Each IBAN found counts one
+     * request, with at least one per call.
      */
     public function extract(string $text): BatchResult
     {
@@ -98,6 +113,8 @@ final class IbanChecker
     /**
      * The IBAN format specification for an ISO 3166-1 alpha-2 country code,
      * for example "DE".
+     *
+     * Works without a key, limited to 100 requests an hour per IP.
      */
     public function getFormat(string $country): FormatSpec
     {
@@ -106,7 +123,14 @@ final class IbanChecker
         );
     }
 
-    /** Resolve an 8 or 11 character ISO 9362 BIC to a bank record. */
+    /**
+     * Resolve an 8 or 11 character ISO 9362 BIC to a bank record.
+     *
+     * Needs a key on the Basic plan or above, or a key with a verified
+     * account on a trial; it no longer works without a key. Without one the
+     * API answers 401 (AuthenticationException); a key whose plan lacks it
+     * gets 403 PLAN_REQUIRED (ApiException). Each call counts one request.
+     */
     public function lookupBic(string $bic): BankRecord
     {
         return BankRecord::fromArray(

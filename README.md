@@ -17,7 +17,8 @@ Requires PHP 8.0 or newer with `ext-curl` and `ext-json`. There are no Composer 
 ```php
 use IbanChecker\IbanChecker;
 
-// Validation needs an API key. A free key covers 100 requests a month:
+// Every method except getFormat() needs an API key. A free key covers
+// single IBAN validation, 100 requests a month:
 // https://ibanchecker.cash/api-docs
 $client = new IbanChecker('YOUR_API_KEY');
 
@@ -34,25 +35,39 @@ if ($result->valid) {
 
 ## Authentication
 
-`validate()`, `validateBulk()` and `extract()` need an API key. Without one the API answers HTTP 401 and the client throws an `AuthenticationException`. A free key covers 100 requests a month and arrives by email in seconds: request one at [ibanchecker.cash/api-docs](https://ibanchecker.cash/api-docs). Paid plans with a larger quota are at [ibanchecker.cash/pricing](https://ibanchecker.cash/pricing).
+Every method except `getFormat()` needs an API key, and that includes `lookupBic()`, which used to work without one. Without a key the API answers HTTP 401 and the client throws an `AuthenticationException`. A free key arrives by email in seconds: request one at [ibanchecker.cash/api-docs](https://ibanchecker.cash/api-docs). Paid plans with a larger quota are at [ibanchecker.cash/pricing](https://ibanchecker.cash/pricing).
 
 ```php
 $client = new IbanChecker(getenv('IBANCHECKER_API_KEY') ?: null);
 ```
 
-`getFormat()` and `lookupBic()` work without a key, limited to 100 requests an hour per IP.
+What a key can call follows its plan:
+
+- A free key covers single IBAN validation (`validate()`), 100 requests a month.
+- `validateBulk()` and `lookupBic()` need the Basic plan or above (Basic, Starter, Growth, Enterprise).
+- `extract()` needs the Growth plan or above (Growth, Enterprise).
+
+If the key's email address has a verified account at [ibanchecker.cash/dashboard](https://ibanchecker.cash/dashboard), the key can try the methods its plan lacks: `validateBulk()` with up to 10 IBANs per call, `lookupBic()`, and `extract()` with up to 5,000 characters per call. This applies to any plan without the feature; a Basic key with a verified account can try `extract()`, for example. A trial call over the trial size gets HTTP 400 with the error code `TOO_MANY_IBANS` (bulk) or `TEXT_TOO_LONG` (extraction), and the client throws a `BadRequestException`. The full limits are 100 IBANs per bulk call and 50,000 characters per extraction.
+
+A call outside the key's plan gets HTTP 403 with the error code `PLAN_REQUIRED`. The client has no dedicated class for 403 and throws an `ApiException`: `getStatus()` returns 403, `getErrorCode()` returns `PLAN_REQUIRED`, and `getResponse()` holds the decoded body, including `required_plan` (`basic` or `growth`) and `upgrade_url` (https://ibanchecker.cash/pricing).
+
+`getFormat()` works without a key, limited to 100 requests an hour per IP; beyond that the API answers HTTP 429 with the error code `RATE_LIMIT_EXCEEDED` and the client throws a `RateLimitException`. This hourly limit applies only to format lookups.
 
 Past the monthly quota the API answers HTTP 429 with the error code `QUOTA_EXCEEDED`, and the client throws a `RateLimitException`; the response body carries an `upgrade_url`. The quota resets on the 1st of each month (UTC).
+
+`validate()` and `lookupBic()` count one request each. `validateBulk()` counts one request per IBAN sent, and `extract()` one per IBAN found, with at least one per call. A call that costs more than the requests left this month also gets HTTP 429 with `QUOTA_EXCEEDED` (a `RateLimitException`).
 
 ## Methods
 
 | Method | Description | API key |
 | --- | --- | --- |
-| `validate(string $iban)` | Validate a single IBAN. Returns a `ValidationResult`. | Required |
-| `validateBulk(iterable $ibans)` | Validate up to 100 IBANs. Returns a `BatchResult`. | Required |
-| `extract(string $text)` | Find and validate IBANs in free text (up to 50,000 chars). Returns a `BatchResult`. | Required |
+| `validate(string $iban)` | Validate a single IBAN. Returns a `ValidationResult`. | Required, any plan (including free) |
+| `validateBulk(iterable $ibans)` | Validate up to 100 IBANs (10 on a trial). Returns a `BatchResult`. Counts one request per IBAN. | Required, Basic plan or above |
+| `extract(string $text)` | Find and validate IBANs in free text (up to 50,000 chars; 5,000 on a trial). Returns a `BatchResult`. Counts one request per IBAN found, at least one per call. | Required, Growth plan or above |
 | `getFormat(string $country)` | IBAN format spec for an ISO country code. Returns a `FormatSpec`. | Not needed |
-| `lookupBic(string $bic)` | Resolve an 8 or 11 character BIC. Returns a `BankRecord`. | Not needed |
+| `lookupBic(string $bic)` | Resolve an 8 or 11 character BIC. Returns a `BankRecord`. | Required, Basic plan or above |
+
+A key with a verified account can try the methods its plan lacks, as described under [Authentication](#authentication).
 
 ### Bulk validation
 
@@ -82,6 +97,8 @@ foreach ($batch as $result) {
 
 ### Country format and BIC lookup
 
+`getFormat()` works without a key. `lookupBic()` needs one on the Basic plan or above, or a trial through a verified account.
+
 ```php
 $format = $client->getFormat('DE');
 echo $format->length, ' ', $format->example;   // 22 DE89370400440532013000
@@ -107,9 +124,10 @@ if ($result->valid && $result->nationalCheckValid === false) {
 
 ## Error handling
 
-A malformed IBAN is **not** an exception: `validate()` returns a `ValidationResult` with `valid = false`. Exceptions are raised only for transport, authentication, quota and server-side problems.
+A malformed IBAN is **not** an exception: `validate()` returns a `ValidationResult` with `valid = false`. Exceptions are raised only for transport, authentication, plan, quota and server-side problems.
 
 ```php
+use IbanChecker\Exception\ApiException;
 use IbanChecker\Exception\AuthenticationException;
 use IbanChecker\Exception\NotFoundException;
 use IbanChecker\Exception\RateLimitException;
@@ -119,13 +137,20 @@ try {
 } catch (NotFoundException $e) {
     echo 'No bank for that BIC';
 } catch (RateLimitException $e) {
-    echo 'Limit reached: ', $e->getMessage();   // getErrorCode(): QUOTA_EXCEEDED or RATE_LIMIT_EXCEEDED
+    echo 'Limit reached: ', $e->getMessage();   // getErrorCode(): QUOTA_EXCEEDED (RATE_LIMIT_EXCEEDED only on keyless getFormat())
 } catch (AuthenticationException $e) {
     echo 'Missing or invalid API key';
+} catch (ApiException $e) {
+    if ($e->getStatus() === 403 && $e->getErrorCode() === 'PLAN_REQUIRED') {
+        $plan = $e->getResponse()['required_plan'] ?? null;   // "basic" or "growth"
+        echo 'This call needs the ', $plan, ' plan or above';
+    } else {
+        throw $e;
+    }
 }
 ```
 
-Every exception extends `IbanChecker\Exception\IbanCheckerException` and carries `getStatus()`, `getErrorCode()` and `getResponse()`.
+Every exception extends `IbanChecker\Exception\IbanCheckerException` and carries `getStatus()`, `getErrorCode()` and `getResponse()`. A 403 `PLAN_REQUIRED` has no class of its own and arrives as an `ApiException`, the class also used for server-side errors, so check `getErrorCode()` to tell them apart.
 
 ## Using your own HTTP stack
 
