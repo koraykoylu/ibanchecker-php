@@ -17,7 +17,9 @@ Requires PHP 8.0 or newer with `ext-curl` and `ext-json`. There are no Composer 
 ```php
 use IbanChecker\IbanChecker;
 
-$client = new IbanChecker();  // no API key needed for light use (100 requests/hour per IP)
+// Validation needs an API key. A free key covers 100 requests a month:
+// https://ibanchecker.cash/api-docs
+$client = new IbanChecker('YOUR_API_KEY');
 
 $result = $client->validate('DE89 3704 0044 0532 0130 00');
 if ($result->valid) {
@@ -32,21 +34,25 @@ if ($result->valid) {
 
 ## Authentication
 
-An API key is optional. Without one, requests are limited to 100 per hour per IP. With a key, requests count against your plan quota. Get a free key at [ibanchecker.cash/api-docs](https://ibanchecker.cash/api-docs).
+`validate()`, `validateBulk()` and `extract()` need an API key. Without one the API answers HTTP 401 and the client throws an `AuthenticationException`. A free key covers 100 requests a month and arrives by email in seconds: request one at [ibanchecker.cash/api-docs](https://ibanchecker.cash/api-docs). Paid plans with a larger quota are at [ibanchecker.cash/pricing](https://ibanchecker.cash/pricing).
 
 ```php
-$client = new IbanChecker('iban_your_api_key');
+$client = new IbanChecker(getenv('IBANCHECKER_API_KEY') ?: null);
 ```
+
+`getFormat()` and `lookupBic()` work without a key, limited to 100 requests an hour per IP.
+
+Past the monthly quota the API answers HTTP 429 with the error code `QUOTA_EXCEEDED`, and the client throws a `RateLimitException`; the response body carries an `upgrade_url`. The quota resets on the 1st of each month (UTC).
 
 ## Methods
 
-| Method | Description |
-| --- | --- |
-| `validate(string $iban)` | Validate a single IBAN. Returns a `ValidationResult`. |
-| `validateBulk(iterable $ibans)` | Validate up to 100 IBANs. Returns a `BatchResult`. |
-| `extract(string $text)` | Find and validate IBANs in free text (up to 50,000 chars). Returns a `BatchResult`. |
-| `getFormat(string $country)` | IBAN format spec for an ISO country code. Returns a `FormatSpec`. |
-| `lookupBic(string $bic)` | Resolve an 8 or 11 character BIC. Returns a `BankRecord`. |
+| Method | Description | API key |
+| --- | --- | --- |
+| `validate(string $iban)` | Validate a single IBAN. Returns a `ValidationResult`. | Required |
+| `validateBulk(iterable $ibans)` | Validate up to 100 IBANs. Returns a `BatchResult`. | Required |
+| `extract(string $text)` | Find and validate IBANs in free text (up to 50,000 chars). Returns a `BatchResult`. | Required |
+| `getFormat(string $country)` | IBAN format spec for an ISO country code. Returns a `FormatSpec`. | Not needed |
+| `lookupBic(string $bic)` | Resolve an 8 or 11 character BIC. Returns a `BankRecord`. | Not needed |
 
 ### Bulk validation
 
@@ -113,9 +119,9 @@ try {
 } catch (NotFoundException $e) {
     echo 'No bank for that BIC';
 } catch (RateLimitException $e) {
-    echo 'Slow down: ', $e->getMessage();
+    echo 'Limit reached: ', $e->getMessage();   // getErrorCode(): QUOTA_EXCEEDED or RATE_LIMIT_EXCEEDED
 } catch (AuthenticationException $e) {
-    echo 'Check your API key';
+    echo 'Missing or invalid API key';
 }
 ```
 

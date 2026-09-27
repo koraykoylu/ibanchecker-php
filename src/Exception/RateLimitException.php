@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace IbanChecker\Exception;
 
-/** The hourly rate limit or monthly quota was exceeded (HTTP 429). */
+/**
+ * The monthly quota of an API key (error code QUOTA_EXCEEDED) or the hourly
+ * per-IP limit on keyless format and BIC lookups (RATE_LIMIT_EXCEEDED) was
+ * exceeded (HTTP 429).
+ */
 final class RateLimitException extends IbanCheckerException
 {
 }

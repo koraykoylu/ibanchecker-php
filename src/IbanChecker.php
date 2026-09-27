@@ -22,10 +22,12 @@ use IbanChecker\Model\ValidationResult;
  * extract IBANs from free text, look up country format specifications, and
  * resolve SWIFT/BIC codes.
  *
- * An API key is optional. Without one, requests are limited to 100 per hour
- * per IP. Get a free key at https://ibanchecker.cash/api-docs.
+ * validate(), validateBulk() and extract() need an API key; without one the
+ * API answers 401 and an AuthenticationException is thrown. A free key covers
+ * 100 requests a month: https://ibanchecker.cash/api-docs. getFormat() and
+ * lookupBic() work without a key, limited to 100 requests an hour per IP.
  *
- *     $client = new IbanChecker();            // or new IbanChecker('iban_your_key')
+ *     $client = new IbanChecker('YOUR_API_KEY');
  *     $result = $client->validate('DE89 3704 0044 0532 0130 00');
  *     if ($result->valid) {
  *         echo $result->bankName, ' ', $result->bic;
@@ -33,7 +35,7 @@ use IbanChecker\Model\ValidationResult;
  */
 final class IbanChecker
 {
-    public const VERSION = '0.1.0';
+    public const VERSION = '0.1.1';
     public const DEFAULT_BASE_URL = 'https://ibanchecker.cash/api/v1';
 
     private ?string $apiKey;
