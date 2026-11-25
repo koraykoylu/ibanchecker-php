@@ -230,4 +230,27 @@ final class IbanCheckerTest extends TestCase
 
         $this->assertSame('https://example.test/v1/validate', $transport->calls[0]['url']);
     }
+
+    public function testBankLogoIsMappedAndNullWhenAbsent(): void
+    {
+        $logo = [
+            'on_light' => 'https://logos.ibanchecker.cash/logos/CFTEMTM1-site.svg',
+            'on_dark' => 'https://logos.ibanchecker.cash/logos/CFTEMTM1-site-w.svg',
+            'dark_needs_light_backing' => false,
+            'format' => 'svg',
+        ];
+        $result = (new IbanChecker(null, IbanChecker::DEFAULT_BASE_URL, 10.0, new FakeTransport(200, ['valid' => true, 'iban' => 'X', 'bank_logo' => $logo])))->validate('X');
+        $this->assertNotNull($result->bankLogo);
+        $this->assertSame($logo['on_dark'], $result->bankLogo->onDark);
+        $this->assertFalse($result->bankLogo->darkNeedsLightBacking);
+        $this->assertSame('svg', $result->bankLogo->format);
+
+        $bank = (new IbanChecker(null, IbanChecker::DEFAULT_BASE_URL, 10.0, new FakeTransport(200, ['bic' => 'CFTEMTM1', 'bank_logo' => $logo])))->lookupBic('CFTEMTM1');
+        $this->assertSame($logo['on_light'], $bank->bankLogo?->onLight);
+
+        $none = (new IbanChecker(null, IbanChecker::DEFAULT_BASE_URL, 10.0, new FakeTransport(200, ['valid' => true, 'iban' => 'X', 'bank_logo' => null])))->validate('X');
+        $this->assertNull($none->bankLogo);
+        $missing = (new IbanChecker(null, IbanChecker::DEFAULT_BASE_URL, 10.0, new FakeTransport(200, ['valid' => true, 'iban' => 'X'])))->validate('X');
+        $this->assertNull($missing->bankLogo);
+    }
 }

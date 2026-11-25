@@ -23,6 +23,8 @@ final class ValidationResult
     public ?string $bankType = null;
     public ?string $bic = null;
     public ?string $bankCity = null;
+    /** Null when no verified logo is held for the bank. */
+    public ?BankLogo $bankLogo = null;
     public ?string $bankCode = null;
     public ?string $branchCode = null;
     public ?string $accountNumber = null;
@@ -54,6 +56,7 @@ final class ValidationResult
         $self->raw = $data;
         $self->valid = (bool) ($data['valid'] ?? false);
         $self->iban = (string) ($data['iban'] ?? '');
+        $self->bankLogo = BankLogo::fromValue($data['bank_logo'] ?? null);
         $self->sepa = isset($data['sepa']) ? (bool) $data['sepa'] : null;
         $self->nationalCheckValid = isset($data['national_check_valid'])
             ? (bool) $data['national_check_valid']

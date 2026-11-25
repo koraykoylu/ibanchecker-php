@@ -40,7 +40,7 @@ use IbanChecker\Model\ValidationResult;
  */
 final class IbanChecker
 {
-    public const VERSION = '0.1.2';
+    public const VERSION = '0.2.0';
     public const DEFAULT_BASE_URL = 'https://ibanchecker.cash/api/v1';
 
     private ?string $apiKey;

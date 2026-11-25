@@ -14,6 +14,8 @@ final class BankRecord
     public ?string $locationCode = null;
     public ?string $branchCode = null;
     public ?string $bankName = null;
+    /** Null when no verified logo is held for the bank. */
+    public ?BankLogo $bankLogo = null;
     public ?string $city = null;
     public ?string $countryName = null;
     public ?bool $sepa = null;
@@ -30,6 +32,7 @@ final class BankRecord
     {
         $self = new self();
         $self->raw = $data;
+        $self->bankLogo = BankLogo::fromValue($data['bank_logo'] ?? null);
         $self->sepa = isset($data['sepa']) ? (bool) $data['sepa'] : null;
 
         $strings = [
